@@ -1,7 +1,7 @@
 import re
 import json
 
-NUMBER_PATTERN = re.compile(r'[0-9]*?.\.{0,1}[0-9e]+')
+TOKEN_PATTERN = re.compile(r'(\b\w+[\.]?\w*\b|[+\-*/^()])')
 OPERATOR_PRECEDENCE = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3, 'sqrt': 3}
 
 def add(x, y):
@@ -32,8 +32,8 @@ def root(x):
     return power(x, 0.5)
 
 
-def parse_input(ip):
-    numbers = NUMBER_PATTERN.match(ip)
+def tokenise_input(expression):
+    return TOKEN_PATTERN.findall(expression)
 
 
 class Node:
@@ -113,6 +113,12 @@ def build_expression_tree(tokens):
     return stack[0] if stack else None
 
 
+def parse_and_eval(expression):
+    tokens = tokenise_input(expression)
+    root = build_expression_tree(tokens)
+    return evaluate_tree(root)
+
+
 test_operations = {
     'add': add(5, 3),
     'subtract': subtract(5, 3),
@@ -126,8 +132,20 @@ test_operations = {
 
 print(json.dumps(test_operations, indent=4))
 # Test the expression tree building and evaluation
-expression = input()
-tokens = expression.split()
-root = build_expression_tree(tokens)
-result = evaluate_tree(root)
-print(result)
+test_expressions = [
+    '5+3',
+    '(3+4)*5',
+    '3+4*5',
+    '4/2',
+    '8/9',
+    '9/0',
+    '(2+5)/(3-3)',
+    '100/(3+2)',
+    '3*(4+5)',
+    'sqrt(25)',
+    'sqrt(24)',
+    '3^2',
+    '3.2 * 2.5'
+]
+test_expressions_results = {expr: parse_and_eval(expr) for expr in test_expressions}
+print(json.dumps(test_expressions_results, indent=4))
