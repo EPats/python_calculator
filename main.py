@@ -1,10 +1,12 @@
 import re
 import json
 
-TOKEN_PATTERN = re.compile(r'(-?\b\w+[\.]?\w*\b|[+\-*/^()])')
+TOKEN_PATTERN = re.compile(r'([a-zA-Z]+|\d*\.\d+|\d+|[+\-*/^()])')
+NUMBER_PATTERN = re.compile(r'\d+(\.\d+)?')
 OPERATOR_PRECEDENCE = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3, 'sqrt': 3}
 DIVIDE_ZERO_ERROR_STRING = 'Division by zero is not allowed.'
 NEGATIVE_ROOT_ERROR_STRING = 'Sqrt of negative number not allowed.'
+
 
 def add(x, y):
     return x + y
@@ -35,7 +37,24 @@ def root(x):
 
 
 def tokenise_input(expression):
-    return TOKEN_PATTERN.findall(expression)
+    raw_tokens = TOKEN_PATTERN.findall(expression)
+    processed_tokens = []
+
+    for i, token in (token_iter := enumerate(raw_tokens)):
+        if token == '-' and i + 1 < len(raw_tokens) and (i == 0 or raw_tokens[i-1] in '+-*/^('):
+            if NUMBER_PATTERN.match(raw_tokens[i+1]):
+                processed_tokens.append(f'-{raw_tokens[i+1]}')
+                next(token_iter, None)
+            else:
+                processed_tokens.append('-1')
+                processed_tokens.append('*')
+        elif token in ['(', 'sqrt'] and i > 0 and (NUMBER_PATTERN.match(raw_tokens[i-1]) or raw_tokens[i-1] == ')'):
+            processed_tokens.append('*')
+            processed_tokens.append(token)
+        else:
+            processed_tokens.append(token)
+
+    return processed_tokens
 
 
 class Node:
@@ -135,6 +154,7 @@ test_operations = {
 print(json.dumps(test_operations, indent=4))
 # Test the expression tree building and evaluation
 test_expressions = [
+    ('-5+3', -2),
     ('5+3', 8),
     ('(3+4)*5', 35),
     ('3+4*5', 23),
@@ -146,6 +166,7 @@ test_expressions = [
     ('3*(4+5)', 27),
     ('sqrt(25)', 5),
     ('sqrt(24)', root(24)),
+    ('-sqrt(25)', -5),
     ('3^2', 9),
     ('3.2 * 2.5', 8),
     ('3+-2', 1),
@@ -155,9 +176,14 @@ test_expressions = [
     ('(-3+2)*(2+4)', -6),
     ('(-3)^2', 9),
     ('5', 5),
-    ('-2', -2)
+    ('-2', -2),
+    ('(3+2)(4*2)', 40),
+    ('4(2+3)', 20),
+    ('(2+3)-(1+2)', 2),
+    ('7sqrt(25)', 35)
 ]
-test_expressions_results = [{'expression': expr, 'passed': parse_and_eval(expr) == answer, 'expected': answer,
+test_expressions_results = [{'expression': expr, 'tokens': tokenise_input(expr),
+                             'passed': parse_and_eval(expr) == answer, 'expected': answer,
                              'received': parse_and_eval(expr)} for expr, answer in test_expressions]
 print(json.dumps(test_expressions_results, indent=4))
 print('\n\n')
@@ -166,4 +192,4 @@ if all_correct:
     print('All tests passed')
 else:
     print(f'{len(test_expressions_results) - sum([1 if expr["passed"] else 0 for expr in test_expressions_results])} tests failed')
-    print(json.dumps([test for test in test_expressions_results if not test['passed']], indent=4))
+    print(json.dumps({i: test for i, test in enumerate(test_expressions_results) if not test['passed']}, indent=4))
