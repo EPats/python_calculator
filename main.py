@@ -1,39 +1,15 @@
 import re
 import json
+import math
+
 
 TOKEN_PATTERN = re.compile(r'([a-zA-Z]+|\d*\.\d+|\d+|[+\-*/^()])')
 NUMBER_PATTERN = re.compile(r'\d+(\.\d+)?')
-OPERATOR_PRECEDENCE = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3, 'sqrt': 3}
+OPERATOR_PRECEDENCE = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3}
+FUNCTIONS = ['sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan']
+OPERATOR_PRECEDENCE.update({fn: 4 for fn in FUNCTIONS})
 DIVIDE_ZERO_ERROR_STRING = 'Division by zero is not allowed.'
 NEGATIVE_ROOT_ERROR_STRING = 'Sqrt of negative number not allowed.'
-
-
-def add(x, y):
-    return x + y
-
-
-def subtract(x, y):
-    return x - y
-
-
-def multiply(x, y):
-    return x * y
-
-
-def divide(x, y):
-    if y == 0:
-        return DIVIDE_ZERO_ERROR_STRING
-    return x / y
-
-
-def power(x, y):
-    return x ** y
-
-
-def root(x):
-    if x < 0:
-        return NEGATIVE_ROOT_ERROR_STRING
-    return power(x, 0.5)
 
 
 def tokenise_input(expression):
@@ -41,14 +17,14 @@ def tokenise_input(expression):
     processed_tokens = []
 
     for i, token in (token_iter := enumerate(raw_tokens)):
-        if token == '-' and i + 1 < len(raw_tokens) and (i == 0 or raw_tokens[i-1] in '+-*/^('):
-            if NUMBER_PATTERN.match(raw_tokens[i+1]):
-                processed_tokens.append(f'-{raw_tokens[i+1]}')
+        if token == '-' and i + 1 < len(raw_tokens) and (i == 0 or raw_tokens[i - 1] in '+-*/^('):
+            if NUMBER_PATTERN.match(raw_tokens[i + 1]):
+                processed_tokens.append(f'-{raw_tokens[i + 1]}')
                 next(token_iter, None)
             else:
                 processed_tokens.append('-1')
                 processed_tokens.append('*')
-        elif token in ['(', 'sqrt'] and i > 0 and (NUMBER_PATTERN.match(raw_tokens[i-1]) or raw_tokens[i-1] == ')'):
+        elif token in ['(', 'sqrt'] and i > 0 and (NUMBER_PATTERN.match(raw_tokens[i - 1]) or raw_tokens[i - 1] == ')'):
             processed_tokens.append('*')
             processed_tokens.append(token)
         else:
@@ -77,26 +53,41 @@ def evaluate_tree(node):
     right_value = evaluate_tree(node.right)
 
     # Perform the operation based on the operator in the node's value
-    if node.value == '+':
-        return left_value + right_value
-    if node.value == '-':
-        return left_value - right_value
-    if node.value == '*':
-        return left_value * right_value
-    if node.value == '/':
-        if right_value == 0:
-            return DIVIDE_ZERO_ERROR_STRING
-        return left_value / right_value
-    if node.value == '^':
-        return left_value ** right_value
-    if node.value == 'sqrt':
-        if left_value < 0:
-            return NEGATIVE_ROOT_ERROR_STRING
-        return left_value ** 0.5
+    match node.value:
+        case '+':
+            return left_value + right_value
+        case '-':
+            return left_value - right_value
+        case '*':
+            return left_value * right_value
+        case '/':
+            if right_value == 0:
+                return DIVIDE_ZERO_ERROR_STRING
+            return left_value / right_value
+        case '^':
+            return left_value ** right_value
+        case 'sqrt':
+            if left_value < 0:
+                return NEGATIVE_ROOT_ERROR_STRING
+            return left_value ** 0.5
+        case 'sin':
+            return math.sin(left_value)
+        case 'cos':
+            return math.cos(left_value)
+        case 'tan':
+            return math.tan(left_value)
+        case 'asin':
+            return math.asin(left_value)
+        case 'acos':
+            return math.acos(left_value)
+        case 'atan':
+            return math.atan(left_value)
 
 
 # Function to create an expression tree from a tokenized expression (infix notation)
 def build_expression_tree(tokens):
+    if 'sin' in tokens:
+        print("hi")
     stack = []
     output = []
 
@@ -113,7 +104,13 @@ def build_expression_tree(tokens):
                 output.append(stack.pop())
             stack.pop()
         else:  # Operand
-            output.append(token)
+            match token:
+                case 'pi':
+                    output.append(math.pi)
+                case 'e':
+                    output.append(math.e)
+                case other:
+                    output.append(token)
 
     while stack:
         output.append(stack.pop())
@@ -124,7 +121,7 @@ def build_expression_tree(tokens):
             stack.append(Node(token))
         else:
             node = Node(token)
-            if token == 'sqrt':  # Unary operator
+            if token in FUNCTIONS:  # Unary operator
                 node.left = stack.pop()
             else:  # Binary operator
                 node.right = stack.pop()
@@ -140,18 +137,6 @@ def parse_and_eval(expression):
     return evaluate_tree(root)
 
 
-test_operations = {
-    'add': add(5, 3),
-    'subtract': subtract(5, 3),
-    'multiply': multiply(5, 3),
-    'divide': divide(5, 3),
-    'divide_by_zero': divide(5, 0),
-    'power': power(5, 3),
-    'sqrt': root(25),
-    'sqrt_negative': root(-25),
-}
-
-print(json.dumps(test_operations, indent=4))
 # Test the expression tree building and evaluation
 test_expressions = [
     ('-5+3', -2),
@@ -159,13 +144,13 @@ test_expressions = [
     ('(3+4)*5', 35),
     ('3+4*5', 23),
     ('4/2', 2),
-    ('8/9', 8/9),
+    ('8/9', 8 / 9),
     ('9/0', DIVIDE_ZERO_ERROR_STRING),
     ('(2+5)/(3-3)', DIVIDE_ZERO_ERROR_STRING),
     ('100/(3+2)', 20),
     ('3*(4+5)', 27),
     ('sqrt(25)', 5),
-    ('sqrt(24)', root(24)),
+    ('sqrt(24)', 24 ** 0.5),
     ('-sqrt(25)', -5),
     ('3^2', 9),
     ('3.2 * 2.5', 8),
@@ -180,7 +165,13 @@ test_expressions = [
     ('(3+2)(4*2)', 40),
     ('4(2+3)', 20),
     ('(2+3)-(1+2)', 2),
-    ('7sqrt(25)', 35)
+    ('7sqrt(25)', 35),
+    ('sin(0)', 0),
+    ('cos(0)', 1),
+    ('tan(0)', 0),
+    ('pi', math.pi),
+    ('cos(pi)', -1),
+    ('cos(pi/2)', 0)
 ]
 test_expressions_results = [{'expression': expr, 'tokens': tokenise_input(expr),
                              'passed': parse_and_eval(expr) == answer, 'expected': answer,
@@ -191,5 +182,9 @@ all_correct = all([expr['passed'] for expr in test_expressions_results])
 if all_correct:
     print('All tests passed')
 else:
-    print(f'{len(test_expressions_results) - sum([1 if expr["passed"] else 0 for expr in test_expressions_results])} tests failed')
+    print(
+        f'{len(test_expressions_results) - sum([1 if expr["passed"] else 0 for expr in test_expressions_results])}'
+        f' tests failed')
     print(json.dumps({i: test for i, test in enumerate(test_expressions_results) if not test['passed']}, indent=4))
+
+print(math.cos(math.pi/2))
