@@ -1,6 +1,7 @@
 import re
 import json
 import math
+import sympy as sym
 
 
 TOKEN_PATTERN = re.compile(r'([a-zA-Z]+|\d*\.\d+|\d+|[+\-*/^()])')
@@ -10,6 +11,9 @@ FUNCTIONS = ['sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan']
 OPERATOR_PRECEDENCE.update({fn: 4 for fn in FUNCTIONS})
 DIVIDE_ZERO_ERROR_STRING = 'Division by zero is not allowed.'
 NEGATIVE_ROOT_ERROR_STRING = 'Sqrt of negative number not allowed.'
+
+
+symbolic_output = True
 
 
 def tokenise_input(expression):
@@ -41,7 +45,7 @@ class Node:
 
 
 # Helper function to evaluate an expression tree
-def evaluate_tree(node):
+def evaluate_tree_calc(node):
     if node is None:
         return 0
 
@@ -49,8 +53,8 @@ def evaluate_tree(node):
     if node.left is None and node.right is None:
         return float(node.value)
 
-    left_value = evaluate_tree(node.left)
-    right_value = evaluate_tree(node.right)
+    left_value = evaluate_tree_calc(node.left)
+    right_value = evaluate_tree_calc(node.right)
 
     # Perform the operation based on the operator in the node's value
     match node.value:
@@ -84,6 +88,48 @@ def evaluate_tree(node):
             return math.atan(left_value)
 
 
+def evaluate_tree(node):
+    if node is None:
+        return 0
+
+    # If leaf node, return its value
+    if node.left is None and node.right is None:
+        return float(node.value)
+
+    left_value = evaluate_tree(node.left)
+    right_value = evaluate_tree(node.right)
+
+    # Perform the operation based on the operator in the node's value
+    match node.value:
+        case '+':
+            return left_value + right_value
+        case '-':
+            return left_value - right_value
+        case '*':
+            return left_value * right_value
+        case '/':
+            if right_value == 0:
+                return DIVIDE_ZERO_ERROR_STRING
+            return left_value / right_value
+        case '^':
+            return left_value ** right_value
+        case 'sqrt':
+            if left_value < 0:
+                return NEGATIVE_ROOT_ERROR_STRING
+            return left_value ** 0.5
+        case 'sin':
+            return sym.sin(left_value)
+        case 'cos':
+            return sym.cos(left_value)
+        case 'tan':
+            return sym.tan(left_value)
+        case 'asin':
+            return sym.asin(left_value)
+        case 'acos':
+            return sym.acos(left_value)
+        case 'atan':
+            return sym.atan(left_value)
+
 # Function to create an expression tree from a tokenized expression (infix notation)
 def build_expression_tree(tokens):
     if 'sin' in tokens:
@@ -106,9 +152,9 @@ def build_expression_tree(tokens):
         else:  # Operand
             match token:
                 case 'pi':
-                    output.append(math.pi)
+                    output.append(sym.pi)
                 case 'e':
-                    output.append(math.e)
+                    output.append(sym.e)
                 case other:
                     output.append(token)
 
@@ -169,14 +215,18 @@ test_expressions = [
     ('sin(0)', 0),
     ('cos(0)', 1),
     ('tan(0)', 0),
-    ('pi', math.pi),
+    ('pi', sym.pi),
     ('cos(pi)', -1),
     ('cos(pi/2)', 0)
 ]
 test_expressions_results = [{'expression': expr, 'tokens': tokenise_input(expr),
                              'passed': parse_and_eval(expr) == answer, 'expected': answer,
                              'received': parse_and_eval(expr)} for expr, answer in test_expressions]
-print(json.dumps(test_expressions_results, indent=4))
+serialisable_test_expressions = [{'expression': key['expression'], 'tokens': key['tokens'], 'passed': key['passed'],
+                                  'expected': sym.N(key['expected']) if isinstance(key['expected'], sym.Basic) else key['expected'],
+                                  'received': sym.N(key['received']) if isinstance(key['received'], sym.Basic) else key['received']}
+                                  for key in test_expressions_results]
+print(json.dumps(serialisable_test_expressions, indent=4))
 print('\n\n')
 all_correct = all([expr['passed'] for expr in test_expressions_results])
 if all_correct:
@@ -185,6 +235,7 @@ else:
     print(
         f'{len(test_expressions_results) - sum([1 if expr["passed"] else 0 for expr in test_expressions_results])}'
         f' tests failed')
-    print(json.dumps({i: test for i, test in enumerate(test_expressions_results) if not test['passed']}, indent=4))
+    print(json.dumps({i: test for i, test in enumerate(serialisable_test_expressions) if not test['passed']}, indent=4))
 
 print(math.cos(math.pi/2))
+print(sym.sqrt(8))
