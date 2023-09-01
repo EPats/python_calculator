@@ -171,7 +171,8 @@ test_expressions = [
     ('tan(0)', 0),
     ('pi', math.pi),
     ('cos(pi)', -1),
-    ('cos(pi/2)', 0)
+    ('cos(pi/2)', 0),
+    ('sin(pi)', 0)
 ]
 test_expressions_results = [{'expression': expr, 'tokens': tokenise_input(expr),
                              'passed': parse_and_eval(expr) == answer, 'expected': answer,
